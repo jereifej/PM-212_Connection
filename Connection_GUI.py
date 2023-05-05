@@ -14,56 +14,66 @@ launch_time = time.time()
 root = tk.Tk()
 root.title("Power Measurement")
 
-# TODO Implement Functionality to Remove Meters
 
 def MeasureOnThread(COM, entry, idx):
-    print("new thread on " + str(idx))
+    # print("new thread on " + str(idx))
     global is_on
-    ser = serial.Serial(COM, BAUD)
+
+    ser = serial.Serial(COM, BAUD, timeout=.1)
+    # print(ser.is_open)
     start = time.time()
     while is_on[idx]:
         ser.write(b'v')
         output = ser.readline()
-
         entry.delete(0, "end")
-        # entry.insert(0, output.decode() + " dB")
-        entry.insert(0, str(round((time.time()-start), 2)) + " dBm")  # for debugging!!!
+        entry.insert(0, output.decode() + " dB")
+        # entry.insert(0, str(round((time.time()-start), 2)) + " dBm")  # for debugging!!!
         time.sleep(.1)
-    print("done!")
+    # print("done!")
     ser.close()
 
 
 def TakeSingleMeasurement(COM, entry, idx):
     if not is_on[idx]:
-        ser = serial.Serial(COM, BAUD)
+        ser = serial.Serial(COM, BAUD, timeout=.1)
         ser.write(b'v')
         output = ser.readline()
-        print(idx)
+        # print(idx)
         entry.delete(0, "end")
-        # entry.insert(0, output.decode() + " dB")
-        entry.insert(0, time.time()-launch_time)  # for debugging!!!
+        entry.insert(0, output.decode() + " dB")
+        # entry.insert(0, time.time()-launch_time)  # for debugging!!!
         ser.close()
 
 
-def TakeContMeasurement(COM, entry, this_button, idx):
+def TakeContMeasurement(COM, entry, this_button, idx, set_all):
     global is_on
     if not is_on[idx]:
         is_on[idx] = True
         this_button.config(fg="black", bg="yellow")
         t1 = threading.Thread(daemon=True, target=MeasureOnThread, args=(COM, entry, idx))
-        print(COM)
+        # print(COM)
         t1.start()
-    else:
+    elif not set_all:
         is_on[idx] = False
         this_button.config(fg="black", bg="white")
 
+def StopContMeasurement(this_button, idx):
+    is_on[idx] = False
+    this_button.config(fg="black", bg="white")
+
 def TakeContMeasurementAll(comlist):
-    global meters_exists, measurements, meters_cont
+    global meters_exists, measurements, meters_cont, is_on
     for idx in range(len(meters_exists)):
         if meters_exists[idx]:
             com = checklist[idx].cget('text')
-            TakeContMeasurement(com, measurements[idx], meters_cont[idx], idx)
+            TakeContMeasurement(com, measurements[idx], meters_cont[idx], idx, True)
 
+def StopContMeasurementAll(comlist):
+    global meters_exists, measurements, meters_cont, is_on
+    for idx in range(len(meters_exists)):
+        if meters_exists[idx] and is_on[idx]:
+            com = checklist[idx].cget('text')
+            StopContMeasurement(meters_cont[idx], idx)
 def TakeSingleMeasurementAll(comlist):
     global meters_exists, measurements, meters_single
     for idx in range(len(meters_exists)):
@@ -71,8 +81,8 @@ def TakeSingleMeasurementAll(comlist):
             com = checklist[idx].cget('text')
             TakeSingleMeasurement(com, measurements[idx], idx)
 def DisplayMeasurementGUI(COM, idx):
-    print(COM)
-    print(idx)
+    # print(COM)
+    # print(idx)
     global meters_single, meters_cont, measurements
 
     # COM_title = tk.Label(text=COM, fg="black", bg="white")
@@ -87,13 +97,16 @@ def DisplayMeasurementGUI(COM, idx):
 
     meters_cont[idx] = tk.Button(text="Continuous Measure",
                                        command=lambda: TakeContMeasurement(COM, measurements[idx],
-                                                                           meters_cont[idx], idx),
+                                                                           meters_cont[idx], idx, False),
                                        fg="black", bg="white")
-    meters_cont[idx].grid(row=idx, column=3, padx=(5, 10), pady=(10, 10))
+    meters_cont[idx].grid(row=idx, column=3, padx=(5, 5), pady=(2, 2))
     root.geometry("")
 
 
 def RemoveMeasurementGUI(COM, idx):
+    meters_single[idx].grid_remove()
+    meters_cont[idx].grid_remove()
+    measurements[idx].grid_remove()
     return
 
 
@@ -105,6 +118,7 @@ def UpdateMeters(checklist, varlist):
             meters_exists[i] = True
             DisplayMeasurementGUI(com, i)
         elif varlist[i].get() == 0 and meters_exists[i]:
+            meters_exists[i] = False
             RemoveMeasurementGUI(com, i)
 
 
@@ -120,9 +134,8 @@ meters_exists = np.full_like(checklist, False)
 meters_single = np.empty_like(checklist, dtype=tk.Button)
 meters_cont = np.empty_like(checklist, dtype=tk.Button)
 measurements = np.empty_like(checklist, dtype=tk.Entry)
-
+ports = sorted(ports)
 for i in range(len(checklist)):
-
     ID = ports[i][0]
     varlist[i] = IntVar()
     checklist[i] = tk.Checkbutton(root, text=ID, variable=varlist[i], onvalue=1, offvalue=0,
@@ -136,6 +149,10 @@ single_measureAllButton.grid(row=len(checklist), column=0, padx=(5, 10), pady=(1
 cont_measureAllButton = tk.Button(text="Continuous Measure All", fg="black", bg="white",
                                   command=lambda: TakeContMeasurementAll(checklist))
 cont_measureAllButton.grid(row=len(checklist), column=1, padx=(5, 10), pady=(10, 10))
+
+cont_measureAllButton_stop = tk.Button(text="Stop Measure All", fg="black", bg="white",
+                                  command=lambda: StopContMeasurementAll(checklist))
+cont_measureAllButton_stop.grid(row=len(checklist), column=2, padx=(5, 10))
 
 root.mainloop()
 is_on = False
