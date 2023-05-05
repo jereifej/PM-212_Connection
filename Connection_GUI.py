@@ -12,10 +12,8 @@ BAUD = 19200
 launch_time = time.time()
 
 root = tk.Tk()
-root.geometry("200x200")
 root.title("Power Measurement")
 
-# TODO Add Global Measurement (Single & Continuous)
 # TODO Implement Functionality to Remove Meters
 
 def MeasureOnThread(COM, entry, idx):
@@ -28,8 +26,8 @@ def MeasureOnThread(COM, entry, idx):
         output = ser.readline()
 
         entry.delete(0, "end")
-        entry.insert(0, output.decode() + " dB")
-        # entry.insert(0, time.time()-start)  # for debugging!!!
+        # entry.insert(0, output.decode() + " dB")
+        entry.insert(0, str(round((time.time()-start), 2)) + " dBm")  # for debugging!!!
         time.sleep(.1)
     print("done!")
     ser.close()
@@ -42,8 +40,8 @@ def TakeSingleMeasurement(COM, entry, idx):
         output = ser.readline()
         print(idx)
         entry.delete(0, "end")
-        entry.insert(0, output.decode() + " dB")
-        # entry.insert(0, time.time()-launch_time)  # for debugging!!!
+        # entry.insert(0, output.decode() + " dB")
+        entry.insert(0, time.time()-launch_time)  # for debugging!!!
         ser.close()
 
 
@@ -59,27 +57,40 @@ def TakeContMeasurement(COM, entry, this_button, idx):
         is_on[idx] = False
         this_button.config(fg="black", bg="white")
 
+def TakeContMeasurementAll(comlist):
+    global meters_exists, measurements, meters_cont
+    for idx in range(len(meters_exists)):
+        if meters_exists[idx]:
+            com = checklist[idx].cget('text')
+            TakeContMeasurement(com, measurements[idx], meters_cont[idx], idx)
 
+def TakeSingleMeasurementAll(comlist):
+    global meters_exists, measurements, meters_single
+    for idx in range(len(meters_exists)):
+        if meters_exists[idx]:
+            com = checklist[idx].cget('text')
+            TakeSingleMeasurement(com, measurements[idx], idx)
 def DisplayMeasurementGUI(COM, idx):
     print(COM)
     print(idx)
     global meters_single, meters_cont, measurements
 
-    COM_title = tk.Label(text=COM, fg="black", bg="white")
-    COM_title.pack()
+    # COM_title = tk.Label(text=COM, fg="black", bg="white")
+    # COM_title.pack(side=tk.TOP)
     measurements[idx] = tk.Entry(justify="center")
     measurements[idx].insert(0, "dB")
-    measurements[idx].pack()
+    measurements[idx].grid(row=idx, column=1)
 
     meters_single[idx] = tk.Button(text="Measure", command=lambda: TakeSingleMeasurement(COM, measurements[idx], idx),
                                    fg="black", bg="white")
-    meters_single[idx].pack()
+    meters_single[idx].grid(row=idx, column=2)
 
     meters_cont[idx] = tk.Button(text="Continuous Measure",
                                        command=lambda: TakeContMeasurement(COM, measurements[idx],
                                                                            meters_cont[idx], idx),
                                        fg="black", bg="white")
-    meters_cont[idx].pack()
+    meters_cont[idx].grid(row=idx, column=3, padx=(5, 10), pady=(10, 10))
+    root.geometry("")
 
 
 def RemoveMeasurementGUI(COM, idx):
@@ -111,11 +122,20 @@ meters_cont = np.empty_like(checklist, dtype=tk.Button)
 measurements = np.empty_like(checklist, dtype=tk.Entry)
 
 for i in range(len(checklist)):
+
     ID = ports[i][0]
     varlist[i] = IntVar()
     checklist[i] = tk.Checkbutton(root, text=ID, variable=varlist[i], onvalue=1, offvalue=0,
                                   command=lambda: UpdateMeters(checklist, varlist))
-    checklist[i].pack()
+    checklist[i].grid(row=i, column=0)
+
+single_measureAllButton = tk.Button(text="Single Measure All", fg="black", bg="white",
+                                    command=lambda: TakeSingleMeasurementAll(checklist))
+single_measureAllButton.grid(row=len(checklist), column=0, padx=(5, 10), pady=(10, 10))
+
+cont_measureAllButton = tk.Button(text="Continuous Measure All", fg="black", bg="white",
+                                  command=lambda: TakeContMeasurementAll(checklist))
+cont_measureAllButton.grid(row=len(checklist), column=1, padx=(5, 10), pady=(10, 10))
 
 root.mainloop()
 is_on = False
